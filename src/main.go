@@ -39,6 +39,7 @@ func main() {
 		panic(err)
 	}
 	rLimit.Cur = rLimit.Max
+	fmt.Println(rLimit.Max)
 	if err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rLimit); err != nil {
 		panic(err)
 	}

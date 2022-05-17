@@ -1,2 +1,13 @@
-FROM golang:1.18.2-alpine
+FROM golang:1.18.2-alpine AS build
 
+RUN apk add --no-cache git
+
+RUN git clone https://github.com/Nojus0/pub-sub app
+
+WORKDIR app
+
+RUN go build -o app_built ./src
+
+#RUN echo 10000000 > /proc/sys/net/netfilter/nf_conntrack_max
+#
+#RUN echo 10000000 > /proc/sys/fs/file-max
