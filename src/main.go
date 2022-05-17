@@ -2,11 +2,11 @@ package main
 
 import (
 	"encoding/binary"
+	"flag"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
-	_ "net/http/pprof"
 	"syscall"
 
 	"github.com/gobwas/ws"
@@ -34,7 +34,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	fmt.Println("Started listening on port 8080")
 	var rLimit syscall.Rlimit
 	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit); err != nil {
 		panic(err)
@@ -44,13 +43,6 @@ func main() {
 		panic(err)
 	}
 
-	// Enable pprof hooks
-	go func() {
-		if err := http.ListenAndServe("localhost:6060", nil); err != nil {
-			log.Fatalf("pprof failed: %v", err)
-		}
-	}()
-
 	// Start epoll
 	var err error
 	epoller, err = newEpoll()
@@ -59,9 +51,17 @@ func main() {
 	}
 
 	go Start()
-	http.HandleFunc("/", wsHandler)
+	http.HandleFunc("/ws", wsHandler)
 
-	if err := http.ListenAndServe("0.0.0.0:8000", nil); err != nil {
+	http.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
+		rw.Write([]byte("Pub sub server"))
+	})
+
+	port := flag.Uint("port", 8080, "port to listen on")
+	flag.Parse()
+
+	fmt.Printf("Started listening on port %d", *port)
+	if err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", *port), nil); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -98,27 +98,29 @@ func Start() {
 					continue
 				}
 
-				var action Action = data[0]
-
 				if len(data) < 5 {
 					continue
 				}
 
+				var action Action = data[0]
 				var roomId = binary.BigEndian.Uint32(data[1:5])
 
 			choose:
 				switch action {
 				case Subscribe:
 
-					log.Println("Subscribing to room", roomId)
+					// * User Max Rooms Cap *
+					if len(subscriptions[conn]) > 50 {
+						break choose
+					}
 
+					// * If room doesn't exist, create it *
 					if rooms[roomId] == nil {
 						rooms[roomId] = ConSet{}
 					}
 
 					for _, s := range subscriptions[conn] {
 						if s == roomId {
-							fmt.Println("Already subscribed to room", roomId)
 							break choose
 						}
 					}
@@ -128,8 +130,6 @@ func Start() {
 					// * Add Conn to room Set
 					rooms[roomId][conn] = struct{}{}
 				case Publish:
-					log.Printf("Publishing to room, %d", roomId)
-
 					if rooms[roomId] == nil {
 						break choose
 					}
