@@ -16,7 +16,7 @@ type CleanupFunc = func()
 var PROCESSING_DEADLINE_MS time.Duration = 50
 var PROCESSING_DEADLINE_TIME = PROCESSING_DEADLINE_MS * time.Millisecond
 
-func SetupWebsocketServer(t *testing.T) (*websocket.Conn, CleanupFunc) {
+func SetupWebsocketServer(t *testing.T) (*websocket.Conn, CleanupFunc, string) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go Loop(ctx)
@@ -35,7 +35,7 @@ func SetupWebsocketServer(t *testing.T) (*websocket.Conn, CleanupFunc) {
 		cancel()
 		s.Close()
 		ws.Close()
-	}
+	}, uri
 }
 
 func ConfirmEmptyServer(t *testing.T) {

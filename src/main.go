@@ -4,13 +4,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/gobwas/ws"
 	"log"
 	"net"
 	"net/http"
 	"syscall"
-	"time"
-
-	"github.com/gobwas/ws"
 )
 
 type ConnectionSet = map[net.Conn]struct{}
@@ -50,12 +48,12 @@ func main() {
 		panic(createEpollError)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, _ := context.WithCancel(context.Background())
 	go Loop(ctx)
-	go func() {
-		time.Sleep(5 * time.Second)
-		cancel()
-	}()
+	//go func() {
+	//	time.Sleep(5 * time.Second)
+	//	cancel()
+	//}()
 
 	http.HandleFunc("/ws", wsHandler)
 

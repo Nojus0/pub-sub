@@ -8,7 +8,7 @@ import (
 )
 
 func TestUnsubscribe(t *testing.T) {
-	ws, done := SetupWebsocketServer(t)
+	ws, done, _ := SetupWebsocketServer(t)
 	defer done()
 	ConfirmEmptyServer(t)
 

@@ -17,9 +17,8 @@ func ConstructRoomPayload(action Action, room uint32, data []byte) []byte {
 
 func TestSubscribe(t *testing.T) {
 
-	ws, done := SetupWebsocketServer(t)
+	ws, done, _ := SetupWebsocketServer(t)
 	defer done()
-
 	ConfirmEmptyServer(t)
 
 	err := ws.WriteMessage(websocket.BinaryMessage, ConstructRoomPayload(Subscribe, 0, []byte{}))

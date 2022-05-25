@@ -7,6 +7,7 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"log"
+	"net"
 )
 
 var EXISTS = struct{}{}
@@ -35,83 +36,93 @@ func runLoop() {
 		if conn == nil {
 			break
 		}
-		if data, op, err := wsutil.ReadClientData(conn); err != nil {
+		data, op, err := wsutil.ReadClientData(conn)
+
+		if err != nil {
 			if err := epoller.Remove(conn); err != nil {
 				log.Println("Failed to remove:", err.Error())
 			}
 			removeUser(conn)
-		} else {
+			continue
+		}
 
-			if op == ws.OpClose {
-				epoller.Remove(conn)
-				removeUser(conn)
-				continue
-			}
+		if op == ws.OpClose {
+			epoller.Remove(conn)
+			removeUser(conn)
+			continue
+		}
 
-			if len(data) < 5 {
-				continue
-			}
+		if len(data) < 5 {
+			continue
+		}
 
-			var action Action = data[0]
-			var roomId = binary.BigEndian.Uint32(data[1:5])
+		var action Action = data[0]
+		var roomId = binary.BigEndian.Uint32(data[1:5])
 
-		choose:
-			switch action {
-			case Subscribe:
-
-				// * User Max Rooms Cap *
-				if len(ConnectionRooms[conn]) > 50 {
-					break choose
-				}
-
-				// * If room doesn't exist, create it *
-				if RoomConnections[roomId] == nil {
-					RoomConnections[roomId] = ConnectionSet{}
-				}
-
-				for s, _ := range ConnectionRooms[conn] {
-					if s == roomId {
-						break choose
-					}
-				}
-
-				_, ok := ConnectionRooms[conn]
-
-				if !ok {
-					ConnectionRooms[conn] = Uint32Set{}
-				}
-
-				ConnectionRooms[conn][roomId] = EXISTS
-
-				// * Add Conn to room Set
-				RoomConnections[roomId][conn] = EXISTS
-			case Publish:
-				if RoomConnections[roomId] == nil {
-					break choose
-				}
-
-				var payload = append([]byte{data[1], data[2], data[3], data[4]}, data[5:]...)
-				var roomConns = RoomConnections[roomId]
-
-				for conn := range roomConns {
-					if err := wsutil.WriteServerMessage(conn, ws.OpText, payload); err != nil {
-						log.Println("Failed to write message", err.Error())
-					}
-				}
-
-			case Unsubscribe:
-				c := RoomConnections[roomId]
-				delete(c, conn)
-
-				if len(c) < 1 {
-					delete(RoomConnections, roomId)
-				} else {
-					RoomConnections[roomId] = c
-				}
-
-				delete(ConnectionRooms[conn], roomId)
-
-			}
+		switch action {
+		case Subscribe:
+			SubscribeAction(conn, roomId)
+		case Publish:
+			PublishAction(conn, roomId, data)
+		case Unsubscribe:
+			UnsubscribeAction(conn, roomId)
 		}
 	}
+}
+
+func SubscribeAction(conn net.Conn, roomId uint32) {
+	// * User Max Rooms Cap *
+	if len(ConnectionRooms[conn]) > 50 {
+		return
+	}
+
+	// * Check if already in the specified Room *
+	if _, exists := ConnectionRooms[conn][roomId]; exists {
+		return
+	}
+
+	// * If room doesn't exist, create it *
+	if _, ok := RoomConnections[roomId]; !ok {
+		RoomConnections[roomId] = ConnectionSet{}
+	}
+	// * If User doesn't have Room list create it *
+	if _, ok := ConnectionRooms[conn]; !ok {
+		ConnectionRooms[conn] = Uint32Set{}
+	}
+
+	// * Add room to user rooms map *
+	ConnectionRooms[conn][roomId] = EXISTS
+
+	// * Add Conn to room Set
+	RoomConnections[roomId][conn] = EXISTS
+}
+
+func PublishAction(conn net.Conn, roomId uint32, data []byte) {
+
+	// * If room doesn't exist *
+	if _, ok := RoomConnections[roomId]; !ok {
+		return
+	}
+
+	var payload = data[1:]
+	var conns = RoomConnections[roomId]
+
+	for conn := range conns {
+		if err := wsutil.WriteServerMessage(conn, ws.OpBinary, payload); err != nil {
+			log.Println("Failed to write message", err.Error())
+		}
+	}
+}
+
+func UnsubscribeAction(conn net.Conn, roomId uint32) {
+	c := RoomConnections[roomId]
+	delete(c, conn)
+
+	if len(c) < 1 {
+		delete(RoomConnections, roomId)
+	} else {
+		RoomConnections[roomId] = c
+	}
+
+	delete(ConnectionRooms[conn], roomId)
 }
