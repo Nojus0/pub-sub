@@ -1,24 +1,24 @@
 package main
 
 import (
-	"encoding/binary"
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"syscall"
+	"time"
 
 	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
 )
 
 type ConSet = map[net.Conn]struct{}
 
-var epoller *epoll
-var subscriptions = map[net.Conn][]uint32{}
+var epoller, createEpollError = newEpoll()
+var ConnectionRooms = map[net.Conn][]uint32{}
 
-var rooms = map[uint32]ConSet{}
+var RoomConnections = map[uint32]ConSet{}
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
 	// Upgrade connection
@@ -28,7 +28,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := epoller.Add(conn); err != nil {
-		log.Printf("Failed to add connection %v", err)
+		log.Println("Failed to add connection:", err.Error())
 		removeUser(conn)
 	}
 }
@@ -44,14 +44,18 @@ func main() {
 		panic(err)
 	}
 
-	// Start epoll
-	var err error
-	epoller, err = newEpoll()
-	if err != nil {
-		panic(err)
+	// Loop epoll
+	if createEpollError != nil {
+		panic(createEpollError)
 	}
 
-	go Start()
+	ctx, cancel := context.WithCancel(context.Background())
+	go Loop(ctx)
+	go func() {
+		time.Sleep(5 * time.Second)
+		cancel()
+	}()
+
 	http.HandleFunc("/ws", wsHandler)
 
 	http.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
@@ -61,7 +65,7 @@ func main() {
 	port := flag.Uint("port", 8080, "port to listen on")
 	flag.Parse()
 
-	fmt.Printf("Started listening on port %d", *port)
+	fmt.Println("Started listening on port", *port)
 	if err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", *port), nil); err != nil {
 		log.Fatal(err)
 	}
@@ -75,98 +79,21 @@ const (
 	Unsubscribe Action = 2
 )
 
-func Start() {
-	for {
-		connections, err := epoller.Wait()
-		if err != nil {
-			log.Printf("Failed to epoll wait %v", err)
-			continue
-		}
-		for _, conn := range connections {
-			if conn == nil {
-				break
-			}
-			if data, op, err := wsutil.ReadClientData(conn); err != nil {
-				if err := epoller.Remove(conn); err != nil {
-					log.Printf("Failed to remove %v", err)
-				}
-				removeUser(conn)
-			} else {
-
-				if op == ws.OpClose {
-					epoller.Remove(conn)
-					removeUser(conn)
-					continue
-				}
-
-				if len(data) < 5 {
-					continue
-				}
-
-				var action Action = data[0]
-				var roomId = binary.BigEndian.Uint32(data[1:5])
-
-			choose:
-				switch action {
-				case Subscribe:
-
-					// * User Max Rooms Cap *
-					if len(subscriptions[conn]) > 50 {
-						break choose
-					}
-
-					// * If room doesn't exist, create it *
-					if rooms[roomId] == nil {
-						rooms[roomId] = ConSet{}
-					}
-
-					for _, s := range subscriptions[conn] {
-						if s == roomId {
-							break choose
-						}
-					}
-
-					subscriptions[conn] = append(subscriptions[conn], roomId)
-
-					// * Add Conn to room Set
-					rooms[roomId][conn] = struct{}{}
-				case Publish:
-					if rooms[roomId] == nil {
-						break choose
-					}
-
-					var payload = append([]byte{data[1], data[2], data[3], data[4]}, data[5:]...)
-					var roomConns = rooms[roomId]
-
-					for conn := range roomConns {
-						if err := wsutil.WriteServerMessage(conn, ws.OpText, payload); err != nil {
-							log.Printf("Failed to write message %v", err)
-						}
-					}
-
-				case Unsubscribe:
-					delete(rooms, roomId)
-				}
-			}
-		}
-	}
-}
-
 func removeUser(conn net.Conn) {
-	connectedRooms, exists := subscriptions[conn]
+	connectedRooms, exists := ConnectionRooms[conn]
 
 	// for every room that the user is in, delete it from the room
 	if exists {
 		for _, userRoom := range connectedRooms {
-			delete(rooms[userRoom], conn)
+			delete(RoomConnections[userRoom], conn)
 
-			if len(rooms[userRoom]) < 1 {
-				delete(rooms, userRoom)
+			if len(RoomConnections[userRoom]) < 1 {
+				delete(RoomConnections, userRoom)
 			}
 		}
 	}
 
-	// delete it from connection to rooms map
-	delete(subscriptions, conn)
+	// delete it from connection to RoomConnections map
+	delete(ConnectionRooms, conn)
 	conn.Close()
 }
