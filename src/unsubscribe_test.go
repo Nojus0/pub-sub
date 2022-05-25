@@ -9,6 +9,8 @@ import (
 
 func TestUnsubscribe(t *testing.T) {
 	ws, done := SetupWebsocketServer(t)
+	defer done()
+	ConfirmEmptyServer(t)
 
 	err := ws.WriteMessage(websocket.BinaryMessage, ConstructRoomPayload(Subscribe, 1, []byte{}))
 
@@ -21,9 +23,9 @@ func TestUnsubscribe(t *testing.T) {
 
 	time.Sleep(PROCESSING_DEADLINE_TIME)
 
-	if len(ConnectionRooms) != 0 {
+	if len(ConnectionRooms) != 1 {
 		fmt.Println(ConnectionRooms)
-		t.Errorf("After unsubscribing user is not removed from ConnectionRooms map")
+		t.Errorf("Connection is not preserved in Conn -> Room[] map(ConnectionRooms) != 1")
 	}
 
 	if len(RoomConnections) != 0 {
@@ -31,5 +33,4 @@ func TestUnsubscribe(t *testing.T) {
 		t.Errorf("After unsubscribing the room is not removed from RoomConnections map")
 	}
 
-	done()
 }

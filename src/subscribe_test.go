@@ -18,15 +18,9 @@ func ConstructRoomPayload(action Action, room uint32, data []byte) []byte {
 func TestSubscribe(t *testing.T) {
 
 	ws, done := SetupWebsocketServer(t)
+	defer done()
 
-	subscriberAmount, roomAmount := len(ConnectionRooms), len(RoomConnections)
-
-	if subscriberAmount != 0 {
-		t.Errorf("Default ConnectionRooms map isn't the length of 0, already entries detected: %d", subscriberAmount)
-	}
-	if roomAmount != 0 {
-		t.Errorf("Default RoomConnections map isn't the length of 0, already entries detected: %d", roomAmount)
-	}
+	ConfirmEmptyServer(t)
 
 	err := ws.WriteMessage(websocket.BinaryMessage, ConstructRoomPayload(Subscribe, 0, []byte{}))
 
@@ -36,7 +30,7 @@ func TestSubscribe(t *testing.T) {
 
 	time.Sleep(PROCESSING_DEADLINE_TIME)
 
-	subscriberAmount, roomAmount = len(ConnectionRooms), len(RoomConnections)
+	subscriberAmount, roomAmount := len(ConnectionRooms), len(RoomConnections)
 
 	if subscriberAmount != 1 {
 		t.Errorf("User isn't added after %d ms deadline to the ConnectionRooms map", PROCESSING_DEADLINE_MS)
@@ -46,5 +40,4 @@ func TestSubscribe(t *testing.T) {
 		t.Errorf("Room isn't added after %d ms deadline to the RoomConnections map", PROCESSING_DEADLINE_MS)
 	}
 
-	done()
 }

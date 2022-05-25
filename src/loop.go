@@ -92,7 +92,25 @@ func runLoop() {
 				}
 
 			case Unsubscribe:
-				delete(RoomConnections, roomId)
+				c := RoomConnections[roomId]
+				delete(c, conn)
+
+				if len(c) < 1 {
+					delete(RoomConnections, roomId)
+				} else {
+					RoomConnections[roomId] = c
+				}
+
+				if rooms, ok := ConnectionRooms[conn]; ok {
+					newRooms := make([]uint32, 0)
+					for _, rr := range rooms {
+						if rr != roomId {
+							newRooms = append(newRooms, rr)
+						}
+					}
+					ConnectionRooms[conn] = newRooms
+				}
+
 			}
 		}
 	}

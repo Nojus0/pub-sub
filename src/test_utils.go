@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/gorilla/websocket"
 	"net/http"
 	"net/http/httptest"
@@ -12,7 +13,7 @@ import (
 
 type CleanupFunc = func()
 
-var PROCESSING_DEADLINE_MS time.Duration = 16
+var PROCESSING_DEADLINE_MS time.Duration = 50
 var PROCESSING_DEADLINE_TIME = PROCESSING_DEADLINE_MS * time.Millisecond
 
 func SetupWebsocketServer(t *testing.T) (*websocket.Conn, CleanupFunc) {
@@ -34,5 +35,17 @@ func SetupWebsocketServer(t *testing.T) (*websocket.Conn, CleanupFunc) {
 		cancel()
 		s.Close()
 		ws.Close()
+	}
+}
+
+func ConfirmEmptyServer(t *testing.T) {
+	if len(ConnectionRooms) != 0 {
+		fmt.Println(ConnectionRooms)
+		t.Errorf("ConfirmEmptyServer(); Server ConnectionRooms is not empty")
+	}
+
+	if len(RoomConnections) != 0 {
+		fmt.Println(RoomConnections)
+		t.Errorf("ConfirmEmptyServer(); Server RoomConnections is not empty")
 	}
 }

@@ -80,11 +80,10 @@ const (
 )
 
 func removeUser(conn net.Conn) {
-	connectedRooms, exists := ConnectionRooms[conn]
 
 	// for every room that the user is in, delete it from the room
-	if exists {
-		for _, userRoom := range connectedRooms {
+	if room, ok := ConnectionRooms[conn]; ok {
+		for _, userRoom := range room {
 			delete(RoomConnections[userRoom], conn)
 
 			if len(RoomConnections[userRoom]) < 1 {
