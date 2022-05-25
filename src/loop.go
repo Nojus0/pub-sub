@@ -9,6 +9,8 @@ import (
 	"log"
 )
 
+var EXISTS = struct{}{}
+
 func Loop(ctx context.Context) {
 	for {
 		select {
@@ -64,19 +66,25 @@ func runLoop() {
 
 				// * If room doesn't exist, create it *
 				if RoomConnections[roomId] == nil {
-					RoomConnections[roomId] = ConSet{}
+					RoomConnections[roomId] = ConnectionSet{}
 				}
 
-				for _, s := range ConnectionRooms[conn] {
+				for s, _ := range ConnectionRooms[conn] {
 					if s == roomId {
 						break choose
 					}
 				}
 
-				ConnectionRooms[conn] = append(ConnectionRooms[conn], roomId)
+				_, ok := ConnectionRooms[conn]
+
+				if !ok {
+					ConnectionRooms[conn] = Uint32Set{}
+				}
+
+				ConnectionRooms[conn][roomId] = EXISTS
 
 				// * Add Conn to room Set
-				RoomConnections[roomId][conn] = struct{}{}
+				RoomConnections[roomId][conn] = EXISTS
 			case Publish:
 				if RoomConnections[roomId] == nil {
 					break choose
@@ -101,15 +109,7 @@ func runLoop() {
 					RoomConnections[roomId] = c
 				}
 
-				if rooms, ok := ConnectionRooms[conn]; ok {
-					newRooms := make([]uint32, 0)
-					for _, rr := range rooms {
-						if rr != roomId {
-							newRooms = append(newRooms, rr)
-						}
-					}
-					ConnectionRooms[conn] = newRooms
-				}
+				delete(ConnectionRooms[conn], roomId)
 
 			}
 		}

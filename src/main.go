@@ -13,12 +13,13 @@ import (
 	"github.com/gobwas/ws"
 )
 
-type ConSet = map[net.Conn]struct{}
+type ConnectionSet = map[net.Conn]struct{}
+type Uint32Set = map[uint32]struct{}
 
 var epoller, createEpollError = newEpoll()
-var ConnectionRooms = map[net.Conn][]uint32{}
 
-var RoomConnections = map[uint32]ConSet{}
+var ConnectionRooms = map[net.Conn]Uint32Set{}
+var RoomConnections = map[uint32]ConnectionSet{}
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
 	// Upgrade connection
@@ -81,13 +82,13 @@ const (
 
 func removeUser(conn net.Conn) {
 
-	// for every room that the user is in, delete it from the room
-	if room, ok := ConnectionRooms[conn]; ok {
-		for _, userRoom := range room {
-			delete(RoomConnections[userRoom], conn)
+	// for every rooms that the user is in, delete it from the rooms
+	if rooms, ok := ConnectionRooms[conn]; ok {
+		for room, _ := range rooms {
+			delete(RoomConnections[room], conn)
 
-			if len(RoomConnections[userRoom]) < 1 {
-				delete(RoomConnections, userRoom)
+			if len(RoomConnections[room]) < 1 {
+				delete(RoomConnections, room)
 			}
 		}
 	}
