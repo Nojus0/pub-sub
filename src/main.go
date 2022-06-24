@@ -14,19 +14,18 @@ import (
 type ConnectionSet = map[net.Conn]struct{}
 type Uint32Set = map[uint32]struct{}
 
-var epoller, createEpollError = newEpoll()
+var Epoller, createEpollError = newEpoll()
 
 var ConnectionRooms = map[net.Conn]Uint32Set{}
 var RoomConnections = map[uint32]ConnectionSet{}
 
-func wsHandler(w http.ResponseWriter, r *http.Request) {
+func WebsocketHandler(w http.ResponseWriter, r *http.Request) {
 	// Upgrade connection
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
 		return
 	}
-
-	if err := epoller.Add(conn); err != nil {
+	if err := Epoller.Add(conn); err != nil {
 		log.Println("Failed to add connection:", err.Error())
 		removeUser(conn)
 	}
@@ -43,7 +42,6 @@ func main() {
 		panic(err)
 	}
 
-	// Loop epoll
 	if createEpollError != nil {
 		panic(createEpollError)
 	}
@@ -55,7 +53,7 @@ func main() {
 	//	cancel()
 	//}()
 
-	http.HandleFunc("/ws", wsHandler)
+	http.HandleFunc("/ws", WebsocketHandler)
 
 	http.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte("Pub sub server"))
@@ -70,12 +68,10 @@ func main() {
 	}
 }
 
-type Action = uint8
-
 const (
-	Subscribe   Action = 0
-	Publish     Action = 1
-	Unsubscribe Action = 2
+	Subscribe   uint8 = 0
+	Publish     uint8 = 1
+	Unsubscribe uint8 = 2
 )
 
 func removeUser(conn net.Conn) {

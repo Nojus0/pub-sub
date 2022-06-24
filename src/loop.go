@@ -16,7 +16,7 @@ func Loop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("Loop gracefully shutdown via context.Done()")
+			fmt.Println("Epoll/Process Loop gracefully shutdown via context.Done()")
 			return
 		default:
 			runLoop()
@@ -26,7 +26,7 @@ func Loop(ctx context.Context) {
 }
 
 func runLoop() {
-	connections, err := epoller.Wait()
+	connections, err := Epoller.Wait()
 	if err != nil {
 		log.Println("Failed to epoll wait: ", err.Error())
 		return
@@ -36,10 +36,11 @@ func runLoop() {
 		if conn == nil {
 			break
 		}
+
 		data, op, err := wsutil.ReadClientData(conn)
 
 		if err != nil {
-			if err := epoller.Remove(conn); err != nil {
+			if err := Epoller.Remove(conn); err != nil {
 				log.Println("Failed to remove:", err.Error())
 			}
 			removeUser(conn)
@@ -47,7 +48,9 @@ func runLoop() {
 		}
 
 		if op == ws.OpClose {
-			epoller.Remove(conn)
+			if err := Epoller.Remove(conn); err != nil {
+				log.Println("Failed to remove:", err.Error())
+			}
 			removeUser(conn)
 			continue
 		}
@@ -56,14 +59,14 @@ func runLoop() {
 			continue
 		}
 
-		var action Action = data[0]
+		var action = data[0]
 		var roomId = binary.BigEndian.Uint32(data[1:5])
 
 		switch action {
 		case Subscribe:
 			SubscribeAction(conn, roomId)
 		case Publish:
-			PublishAction(conn, roomId, data)
+			PublishAction(roomId, data)
 		case Unsubscribe:
 			UnsubscribeAction(conn, roomId)
 		}
@@ -97,7 +100,7 @@ func SubscribeAction(conn net.Conn, roomId uint32) {
 	RoomConnections[roomId][conn] = EXISTS
 }
 
-func PublishAction(conn net.Conn, roomId uint32, data []byte) {
+func PublishAction(roomId uint32, data []byte) {
 
 	// * If room doesn't exist *
 	if _, ok := RoomConnections[roomId]; !ok {

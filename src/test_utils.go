@@ -21,7 +21,7 @@ func SetupWebsocketServer(t *testing.T) (*websocket.Conn, CleanupFunc, string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	go Loop(ctx)
 
-	s := httptest.NewServer(http.HandlerFunc(wsHandler))
+	s := httptest.NewServer(http.HandlerFunc(WebsocketHandler))
 
 	uri := "ws" + strings.TrimPrefix(s.URL, "http")
 

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func ConstructRoomPayload(action Action, room uint32, data []byte) []byte {
+func ConstructRoomPayload(action uint8, room uint32, data []byte) []byte {
 	roomBytes := make([]byte, 4)
 
 	binary.BigEndian.PutUint32(roomBytes, room)
