@@ -1,4 +1,7 @@
 # Pub Sub
+
+[![Contribute with Gitpod](https://img.shields.io/badge/Contribute%20with-Gitpod-908a85?logo=gitpod)](https://gitpod.io/#https://github.com/Nojus0/pub-sub)
+
 Scalable pub-sub server written in go. Can serve 1 million websocket connections while using about gigabyte of ram. Meant to be deployed on Linux.
 
 # Set up
